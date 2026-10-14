@@ -1,0 +1,109 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "6f1d2c84-3b7a-4e59-9a0d-8c2e5b41f7a3",
+  "localizationInfo": {
+    "defaultLanguageTag": "en-us",
+    "additionalLanguages": []
+  },
+  "developer": {
+    "name": "Contoso IT",
+    "websiteUrl": "https://localhost:3000/",
+    "privacyUrl": "https://localhost:3000/",
+    "termsOfUseUrl": "https://localhost:3000/"
+  },
+  "name": {
+    "short": "Email Templates",
+    "full": "Email Templates"
+  },
+  "description": {
+    "short": "Insert approved email templates into messages.",
+    "full": "Search, preview and insert approved company email templates into the message you are writing."
+  },
+  "icons": {
+    "outline": "assets/outline.png",
+    "color": "assets/color.png"
+  },
+  "accentColor": "#0F6CBD",
+  "showLoadingIndicator": false,
+  "isFullScreen": false,
+  "defaultBlockUntilAdminAction": false,
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "MailboxItem.ReadWrite.User",
+          "type": "Delegated"
+        }
+      ]
+    }
+  },
+  "extensions": [
+    {
+      "requirements": {
+        "scopes": ["mail"],
+        "capabilities": [{ "name": "Mailbox", "minVersion": "1.5" }]
+      },
+      "runtimes": [
+        {
+          "requirements": {
+            "capabilities": [{ "name": "Mailbox", "minVersion": "1.5" }]
+          },
+          "id": "TaskPaneRuntime",
+          "type": "general",
+          "code": {
+            "page": "https://localhost:3000/taskpane.html"
+          },
+          "lifetime": "short",
+          "actions": [
+            {
+              "id": "ShowTemplatesPane",
+              "type": "openPage",
+              "view": "dashboard",
+              "pinnable": true
+            }
+          ]
+        }
+      ],
+      "ribbons": [
+        {
+          "contexts": ["mailCompose"],
+          "tabs": [
+            {
+              "builtInTabId": "TabDefault",
+              "groups": [
+                {
+                  "id": "msgComposeTemplatesGroup",
+                  "label": "Templates",
+                  "icons": [
+                    { "size": 16, "url": "https://localhost:3000/assets/icon-16.png" },
+                    { "size": 32, "url": "https://localhost:3000/assets/icon-32.png" },
+                    { "size": 80, "url": "https://localhost:3000/assets/icon-80.png" }
+                  ],
+                  "controls": [
+                    {
+                      "id": "msgComposeOpenTemplatesButton",
+                      "type": "button",
+                      "label": "Insert template",
+                      "icons": [
+                        { "size": 16, "url": "https://localhost:3000/assets/icon-16.png" },
+                        { "size": 32, "url": "https://localhost:3000/assets/icon-32.png" },
+                        { "size": 80, "url": "https://localhost:3000/assets/icon-80.png" }
+                      ],
+                      "supertip": {
+                        "title": "Insert template",
+                        "description": "Open the list of approved email templates."
+                      },
+                      "actionId": "ShowTemplatesPane"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

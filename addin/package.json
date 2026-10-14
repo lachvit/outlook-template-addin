@@ -1,0 +1,55 @@
+{
+  "name": "outlook-template-addin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Outlook add-in that inserts approved email templates hosted on GitHub Pages.",
+  "license": "UNLICENSED",
+  "config": {
+    "dev_server_port": 3000
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "dev-server": "webpack serve --mode development",
+    "start": "office-addin-debugging start manifest.json",
+    "start:xml": "office-addin-debugging start manifest.xml",
+    "stop": "office-addin-debugging stop manifest.json",
+    "stop:xml": "office-addin-debugging stop manifest.xml",
+    "lint": "tsc --noEmit && eslint .",
+    "test": "jest",
+    "validate": "office-addin-manifest validate manifest.json && office-addin-manifest validate manifest.xml"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.54.0",
+    "dompurify": "^3.1.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/jest": "^29.5.12",
+    "@types/office-js": "^1.0.400",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "eslint": "^9.9.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.9.0",
+    "html-webpack-plugin": "^5.6.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "office-addin-debugging": ">=5.0.0",
+    "office-addin-dev-certs": ">=1.13.0",
+    "office-addin-manifest": ">=1.13.0",
+    "ts-jest": "^29.2.5",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.3.0",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.4"
+  }
+}

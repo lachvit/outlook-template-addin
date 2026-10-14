@@ -1,0 +1,80 @@
+# Checks every pull request. deploy.yml also calls this workflow before publishing.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  powershell:
+    name: Templates and PowerShell
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Pester and PSScriptAnalyzer
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+
+      - name: Validate templates
+        run: ./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -CheckOnly
+
+      - name: Run Pester tests
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: Run PSScriptAnalyzer
+        run: |
+          $results = @(Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Warning, Error)
+          $results | Format-Table -AutoSize -Property ScriptName, Line, RuleName, Message
+          if ($results.Count -gt 0) { exit 1 }
+
+  addin:
+    name: Add-in
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: addin
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Lint and type-check
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Validate manifests
+        run: npm run validate
+
+      - name: Test production build
+        env:
+          ADDIN_BASE_URL: https://example.github.io/ci-check/
+          BUILD_ID: ci
+        run: npm run build
