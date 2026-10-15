@@ -471,6 +471,8 @@ After the first `npm install`, commit `addin/package-lock.json`. From then on, u
 
 ### Sideloading into Outlook for testing
 
+For a step-by-step guide, including testing when sideloading is blocked, see [docs/local-testing.md](docs/local-testing.md).
+
 ```powershell
 # From the repository root: build a local index.json for the dev server
 ./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -OutputPath templates/index.json -BaseUrl https://localhost:3000/templates/
