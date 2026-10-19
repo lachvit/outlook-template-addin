@@ -43,12 +43,24 @@ export async function insertIntoMessage(html: string, text: string): Promise<Ins
   const data = format === "html" ? html : text;
 
   const before = await call<string>((cb) => item.body.getAsync(coercionType, cb));
-  await call<void>((cb) => item.body.setSelectedDataAsync(data, { coercionType }, cb));
-  const after = await call<string>((cb) => item.body.getAsync(coercionType, cb));
-  if (after !== before) {
-    return { format, position: "cursor" };
+  let insertError: unknown;
+  try {
+    await call<void>((cb) => item.body.setSelectedDataAsync(data, { coercionType }, cb));
+    const after = await call<string>((cb) => item.body.getAsync(coercionType, cb));
+    if (after !== before) {
+      return { format, position: "cursor" };
+    }
+  } catch (error) {
+    // Some Outlook versions reject the call ("The operation is not supported") when the cursor isn't in the body.
+    insertError = error;
   }
 
-  await call<void>((cb) => item.body.prependAsync(data, { coercionType }, cb));
+  try {
+    await call<void>((cb) => item.body.prependAsync(data, { coercionType }, cb));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const first = insertError instanceof Error && insertError.message !== reason ? ` (${insertError.message})` : "";
+    throw new Error(`Outlook could not add the template to the message: ${reason}${first}`);
+  }
   return { format, position: "top" };
 }

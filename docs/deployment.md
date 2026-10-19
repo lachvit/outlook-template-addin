@@ -1,6 +1,6 @@
 # Deployment runbook (admins)
 
-Short checklist for whoever runs this add-in. The [README](../README.md) explains each step in more detail.
+Short checklist for whoever runs this add-in. The [README](../README.md) explains each step in more detail, and [production-setup.md](production-setup.md) is the complete, ordered walkthrough for a new tenant.
 
 Throughout, `<org>` is your GitHub organization (or user) name, `<repo>` the repository name, and `<site-url>` the SharePoint site for the templates (for example `https://contoso.sharepoint.com/sites/EmailTemplates`).
 

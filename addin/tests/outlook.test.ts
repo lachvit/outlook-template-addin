@@ -3,9 +3,10 @@ import { insertIntoMessage } from "../src/taskpane/lib/outlook";
 type Callback<T> = (result: { status: string; value?: T; error?: { message: string } }) => void;
 
 /** Minimal fake of Office.js: a body with a cursor that may or may not be inside it. */
-function setupOffice(options: { html: boolean; cursorInBody: boolean; body?: string }) {
+function setupOffice(options: { html: boolean; cursorInBody: boolean; body?: string; selectedFails?: string; prependFails?: string }) {
   let body = options.body ?? "<p>Signature</p>";
   const ok = <T,>(cb: Callback<T>, value?: T) => cb({ status: "succeeded", value });
+  const fail = (cb: Callback<void>, message: string) => cb({ status: "failed", error: { message } });
   const calls: string[] = [];
   const item = {
     body: {
@@ -13,6 +14,9 @@ function setupOffice(options: { html: boolean; cursorInBody: boolean; body?: str
       getAsync: (_type: string, cb: Callback<string>) => ok(cb, body),
       setSelectedDataAsync: (data: string, _opts: unknown, cb: Callback<void>) => {
         calls.push("setSelectedData");
+        if (options.selectedFails) {
+          return fail(cb, options.selectedFails);
+        }
         if (options.cursorInBody) {
           body = body + data;
         }
@@ -20,6 +24,9 @@ function setupOffice(options: { html: boolean; cursorInBody: boolean; body?: str
       },
       prependAsync: (data: string, _opts: unknown, cb: Callback<void>) => {
         calls.push("prepend");
+        if (options.prependFails) {
+          return fail(cb, options.prependFails);
+        }
         body = data + body;
         ok(cb);
       },
@@ -52,6 +59,20 @@ describe("insertIntoMessage", () => {
     const office = setupOffice({ html: false, cursorInBody: false, body: "Sig" });
     await expect(insertIntoMessage("<p>T</p>", "T")).resolves.toEqual({ format: "text", position: "top" });
     expect(office.body()).toBe("TSig");
+  });
+
+  it("adds the template at the top when Outlook rejects inserting at the cursor", async () => {
+    const office = setupOffice({ html: true, cursorInBody: false, selectedFails: "The operation is not supported." });
+    await expect(insertIntoMessage("<p>T</p>", "T")).resolves.toEqual({ format: "html", position: "top" });
+    expect(office.calls).toEqual(["setSelectedData", "prepend"]);
+    expect(office.body()).toBe("<p>T</p><p>Signature</p>");
+  });
+
+  it("reports both errors when Outlook rejects every way of inserting", async () => {
+    setupOffice({ html: true, cursorInBody: false, selectedFails: "Not supported.", prependFails: "Too large." });
+    await expect(insertIntoMessage("<p>T</p>", "T")).rejects.toThrow(
+      "Outlook could not add the template to the message: Too large. (Not supported.)",
+    );
   });
 
   it("explains when no message is being written", async () => {

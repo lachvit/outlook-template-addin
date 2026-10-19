@@ -3,6 +3,8 @@
 An Outlook add-in that lets people insert approved, company-branded email templates into the message they are writing. The templates live in a **SharePoint Online document library**, where authors edit them directly. The add-in reads them through **Microsoft Graph** with the user's own sign-in. The add-in itself (a static web app) is built and hosted by GitHub.
 
 > **New to GitHub?** Start at [Part 4: Working with GitHub](#part-4-working-with-github). If you only need to add or change a template, go to [Part 5: Adding or editing a template](#part-5-adding-or-editing-a-template). Setting up the Entra ID app registration: [docs/app-registration.md](docs/app-registration.md).
+>
+> **Setting up a new tenant (e.g. production)?** Follow [docs/production-setup.md](docs/production-setup.md): every step from SharePoint and Entra ID to GitHub and Outlook, in order.
 
 ## Contents
 
@@ -85,6 +87,7 @@ sequenceDiagram
 ├── docs/
 │   ├── app-registration.md       Entra ID app registration + enterprise app settings
 │   ├── deployment.md             Short admin runbook (setup, publishing, admin center)
+│   ├── production-setup.md       Full step-by-step setup for a new tenant (production)
 │   ├── local-testing.md          Running and testing the add-in on your PC
 │   └── publishing-to-github.md   Putting this project on GitHub
 ├── samples/

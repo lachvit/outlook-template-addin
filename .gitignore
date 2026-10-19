@@ -11,5 +11,3 @@ addin/.env
 .vs/
 .DS_Store
 Thumbs.db
-docs/
-.git/
