@@ -1,13 +1,51 @@
 const path = require("path");
+const fs = require("fs");
 const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 // The manifests in source control always use this address; production builds replace it.
 const DEV_URL = "https://localhost:3000/";
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_LIBRARY = "Email Templates";
+
+// Optional local settings file (see .env.example). Real environment variables take precedence.
+const envFile = path.resolve(__dirname, ".env");
+if (fs.existsSync(envFile)) {
+  process.loadEnvFile(envFile);
+}
 
 function withTrailingSlash(url) {
   return url.endsWith("/") ? url : `${url}/`;
+}
+
+/** Reads the Entra ID and SharePoint settings; production builds fail fast when one is missing or malformed. */
+function readSettings(dev) {
+  const settings = {
+    AUTH_CLIENT_ID: (process.env.AUTH_CLIENT_ID || "").trim(),
+    AUTH_TENANT_ID: (process.env.AUTH_TENANT_ID || "").trim(),
+    SHAREPOINT_SITE_URL: (process.env.SHAREPOINT_SITE_URL || "").trim().replace(/\/+$/, ""),
+    SHAREPOINT_LIBRARY: (process.env.SHAREPOINT_LIBRARY || DEFAULT_LIBRARY).trim(),
+    SHAREPOINT_FOLDER: (process.env.SHAREPOINT_FOLDER || "").trim().replace(/^\/+|\/+$/g, ""),
+  };
+  const problems = [];
+  for (const name of ["AUTH_CLIENT_ID", "AUTH_TENANT_ID"]) {
+    if (!GUID.test(settings[name])) {
+      problems.push(`${name} must be a GUID from the Entra ID app registration (got "${settings[name]}").`);
+    }
+  }
+  if (!/^https:\/\/[^/]+\.sharepoint\.com(\/|$)/i.test(settings.SHAREPOINT_SITE_URL)) {
+    problems.push(
+      `SHAREPOINT_SITE_URL must look like https://<tenant>.sharepoint.com/sites/<site> (got "${settings.SHAREPOINT_SITE_URL}").`,
+    );
+  }
+  if (problems.length > 0) {
+    if (!dev) {
+      throw new Error(`Invalid add-in settings:\n- ${problems.join("\n- ")}`);
+    }
+    console.warn(`\nAdd-in settings are incomplete; the task pane will show a setup message:\n- ${problems.join("\n- ")}\n`);
+  }
+  return settings;
 }
 
 async function getDevHttpsOptions() {
@@ -27,15 +65,14 @@ module.exports = async (env, options) => {
   if (!baseUrl.startsWith("https://")) {
     throw new Error(`ADDIN_BASE_URL must start with https:// (got ${baseUrl}).`);
   }
-  const templatesBaseUrl = withTrailingSlash(process.env.TEMPLATES_BASE_URL || `${baseUrl}templates/`);
-  const buildId = process.env.BUILD_ID || (dev ? "dev" : String(Date.now()));
+  const settings = readSettings(dev);
 
   const rewriteUrls = (content) =>
     dev ? content : content.toString().split(DEV_URL).join(baseUrl);
 
   return {
     devtool: dev ? "source-map" : false,
-    entry: { taskpane: "./src/taskpane/index.tsx" },
+    entry: { taskpane: "./src/taskpane/index.tsx", auth: "./src/auth/auth.ts" },
     output: {
       path: path.resolve(__dirname, "dist"),
       publicPath: baseUrl,
@@ -48,13 +85,21 @@ module.exports = async (env, options) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __TEMPLATES_BASE_URL__: JSON.stringify(templatesBaseUrl),
-        __BUILD_ID__: JSON.stringify(buildId),
+        __AUTH_CLIENT_ID__: JSON.stringify(settings.AUTH_CLIENT_ID),
+        __AUTH_TENANT_ID__: JSON.stringify(settings.AUTH_TENANT_ID),
+        __SHAREPOINT_SITE_URL__: JSON.stringify(settings.SHAREPOINT_SITE_URL),
+        __SHAREPOINT_LIBRARY__: JSON.stringify(settings.SHAREPOINT_LIBRARY),
+        __SHAREPOINT_FOLDER__: JSON.stringify(settings.SHAREPOINT_FOLDER),
       }),
       new HtmlWebpackPlugin({
         filename: "taskpane.html",
         template: "./src/taskpane/taskpane.html",
         chunks: ["taskpane"],
+      }),
+      new HtmlWebpackPlugin({
+        filename: "auth.html",
+        template: "./src/auth/auth.html",
+        chunks: ["auth"],
       }),
       new CopyWebpackPlugin({
         patterns: [
@@ -69,8 +114,6 @@ module.exports = async (env, options) => {
       port: 3000,
       headers: { "Access-Control-Allow-Origin": "*" },
       server: { type: "https", options: env.WEBPACK_SERVE ? await getDevHttpsOptions() : {} },
-      // Serves ../templates at /templates so the task pane works locally (run the publish script first).
-      static: [{ directory: path.resolve(__dirname, "../templates"), publicPath: "/templates" }],
     },
   };
 };

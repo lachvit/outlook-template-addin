@@ -23,16 +23,18 @@ import {
   useId,
   useToastController,
 } from "@fluentui/react-components";
-import { BUILD_ID, TEMPLATES_BASE_URL } from "../lib/config";
-import { fetchTemplateHtml, fetchTemplateIndex } from "../lib/fetchTemplates";
+import { getGraphToken, signIn, SignInRequiredError } from "../lib/auth";
+import { getMissingSettings, SHAREPOINT_FOLDER, SHAREPOINT_LIBRARY, SHAREPOINT_SITE_URL } from "../lib/config";
 import { filterTemplates, getCategories } from "../lib/filter";
 import { insertIntoMessage } from "../lib/outlook";
+import { SharePointTemplateStore } from "../lib/sharePoint";
 import { PreparedTemplate, prepareTemplate } from "../lib/templateHtml";
-import { TemplateInfo } from "../lib/templateIndex";
+import { TemplateInfo } from "../lib/templateItems";
 import { TemplatePreview } from "./TemplatePreview";
 
 type IndexState =
   | { status: "loading" }
+  | { status: "signin"; message?: string }
   | { status: "error"; message: string }
   | { status: "ready"; templates: TemplateInfo[] };
 
@@ -43,6 +45,12 @@ type PreviewState =
   | { status: "ready"; template: PreparedTemplate };
 
 const ALL_CATEGORIES = "";
+
+const missingSettings = getMissingSettings();
+const store = new SharePointTemplateStore(
+  { siteUrl: SHAREPOINT_SITE_URL, libraryName: SHAREPOINT_LIBRARY, folderPath: SHAREPOINT_FOLDER },
+  getGraphToken,
+);
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -120,15 +128,39 @@ export function App() {
   const [selectedId, setSelectedId] = React.useState<string>();
   const [preview, setPreview] = React.useState<PreviewState>({ status: "idle" });
   const [inserting, setInserting] = React.useState(false);
+  const [signingIn, setSigningIn] = React.useState(false);
   const prepared = React.useRef(new Map<string, PreparedTemplate>());
 
   const loadIndex = React.useCallback(() => {
+    if (missingSettings.length > 0) {
+      setIndex({
+        status: "error",
+        message: `The add-in was built without these settings: ${missingSettings.join(", ")}. Ask IT to finish the setup.`,
+      });
+      return;
+    }
     setIndex({ status: "loading" });
-    fetchTemplateIndex(TEMPLATES_BASE_URL, BUILD_ID).then(
+    prepared.current.clear();
+    store.listTemplates().then(
       (templates) => setIndex({ status: "ready", templates }),
-      (error: unknown) => setIndex({ status: "error", message: errorMessage(error) }),
+      (error: unknown) =>
+        setIndex(
+          error instanceof SignInRequiredError ? { status: "signin" } : { status: "error", message: errorMessage(error) },
+        ),
     );
   }, []);
+
+  const startSignIn = async () => {
+    setSigningIn(true);
+    try {
+      await signIn();
+      loadIndex();
+    } catch (error) {
+      setIndex({ status: "signin", message: errorMessage(error) });
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   React.useEffect(() => loadIndex(), [loadIndex]);
 
@@ -149,9 +181,10 @@ export function App() {
     }
     let cancelled = false;
     setPreview({ status: "loading" });
-    fetchTemplateHtml(selected.url, BUILD_ID)
+    store
+      .getTemplateHtml(selected.id)
       .then((raw) => {
-        const template = prepareTemplate(raw, selected.url);
+        const template = prepareTemplate(raw);
         prepared.current.set(selected.id, template);
         if (!cancelled) {
           setPreview({ status: "ready", template });
@@ -209,6 +242,22 @@ export function App() {
         <div className={styles.centered}>
           <Spinner label="Loading templates..." />
         </div>
+      </div>
+    );
+  }
+
+  if (index.status === "signin") {
+    return (
+      <div className={styles.root}>
+        <MessageBar intent={index.message ? "warning" : "info"} layout="multiline">
+          <MessageBarBody>
+            <MessageBarTitle>Sign in to see the templates</MessageBarTitle>
+            {index.message ?? "The templates are stored in SharePoint. Sign in with your work account to load them."}
+          </MessageBarBody>
+        </MessageBar>
+        <Button appearance="primary" disabled={signingIn} onClick={() => void startSignIn()}>
+          {signingIn ? "Signing in..." : "Sign in"}
+        </Button>
       </div>
     );
   }

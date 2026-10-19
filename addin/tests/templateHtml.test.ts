@@ -1,12 +1,10 @@
 import {
-  absolutizeUrls,
   extractBody,
   htmlToPlainText,
   prepareTemplate,
+  removeRelativeUrls,
   sanitizeHtml,
 } from "../src/taskpane/lib/templateHtml";
-
-const TEMPLATE_URL = "https://contoso.github.io/repo/templates/welcome.html";
 
 describe("extractBody", () => {
   it("returns only the body content", () => {
@@ -34,16 +32,28 @@ describe("sanitizeHtml", () => {
   });
 });
 
-describe("absolutizeUrls", () => {
-  it("makes relative image and link URLs absolute", () => {
-    const result = absolutizeUrls('<img src="images/logo.png"><a href="../docs/a.pdf">A</a>', TEMPLATE_URL);
-    expect(result).toContain('src="https://contoso.github.io/repo/templates/images/logo.png"');
-    expect(result).toContain('href="https://contoso.github.io/repo/docs/a.pdf"');
+describe("removeRelativeUrls", () => {
+  it("removes images whose source recipients could not load", () => {
+    const result = removeRelativeUrls(
+      '<p>A<img src="images/logo.png"><img src="/x.png"><img src="http://cdn.test/a.png"><img></p>',
+    );
+    expect(result).toBe("<p>A</p>");
   });
 
-  it("leaves absolute, mailto and anchor URLs alone", () => {
-    const html = '<img src="https://cdn.test/a.png"><a href="mailto:a@b.test">m</a><a href="#top">t</a>';
-    expect(absolutizeUrls(html, TEMPLATE_URL)).toBe(html);
+  it("keeps https, data and cid images", () => {
+    const html = '<img src="https://cdn.test/a.png"><img src="data:image/png;base64,AAAA"><img src="cid:logo">';
+    expect(removeRelativeUrls(html)).toBe(html);
+  });
+
+  it("unlinks relative links but keeps their text", () => {
+    expect(removeRelativeUrls('<a href="../docs/a.pdf">A</a>')).toBe("<a>A</a>");
+  });
+
+  it("leaves absolute, mailto, tel and anchor links alone", () => {
+    const html =
+      '<a href="https://x.test">h</a><a href="http://x.test">p</a><a href="mailto:a@b.test">m</a>' +
+      '<a href="tel:+15550100">t</a><a href="#top">a</a>';
+    expect(removeRelativeUrls(html)).toBe(html);
   });
 });
 
@@ -60,14 +70,16 @@ describe("htmlToPlainText", () => {
 });
 
 describe("prepareTemplate", () => {
-  it("extracts, sanitizes and absolutizes in one step", () => {
+  it("extracts, sanitizes and removes unreachable images in one step", () => {
     const raw =
       '<html><head><meta name="template-name" content="X"></head>' +
-      '<body><p onmouseover="x()">Hi</p><img src="images/logo.png" alt="Logo"></body></html>';
-    const result = prepareTemplate(raw, TEMPLATE_URL);
+      '<body><p onmouseover="x()">Hi</p><img src="images/logo.png" alt="Logo">' +
+      '<img src="https://www.contoso.test/logo.png" alt="Contoso"></body></html>';
+    const result = prepareTemplate(raw);
     expect(result.html).not.toContain("onmouseover");
     expect(result.html).not.toContain("template-name");
-    expect(result.html).toContain('src="https://contoso.github.io/repo/templates/images/logo.png"');
+    expect(result.html).not.toContain("images/logo.png");
+    expect(result.html).toContain('src="https://www.contoso.test/logo.png"');
     expect(result.text).toBe("Hi");
   });
 });

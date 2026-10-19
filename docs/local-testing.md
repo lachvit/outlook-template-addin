@@ -4,7 +4,7 @@ This guide runs the add-in from your own PC (`https://localhost:3000/`) so you c
 
 - [Before you start](#before-you-start)
 - [Step 1: Install the dependencies](#step-1-install-the-dependencies)
-- [Step 2: Build the local template list](#step-2-build-the-local-template-list)
+- [Step 2: Configure the local settings](#step-2-configure-the-local-settings)
 - [Step 3: Start the dev server](#step-3-start-the-dev-server)
 - [Step 4: Check the dev server in a browser](#step-4-check-the-dev-server-in-a-browser)
 - [Step 5: Test the task pane in the browser](#step-5-test-the-task-pane-in-the-browser)
@@ -15,22 +15,24 @@ This guide runs the add-in from your own PC (`https://localhost:3000/`) so you c
 
 ```mermaid
 flowchart LR
-    A[npm install] --> B[Publish-TemplateIndex.ps1<br/>local index.json]
+    A[npm install] --> B[addin/.env<br/>tenant settings]
     B --> C[npm run dev-server]
     C --> D[Browser check<br/>taskpane.html]
     C --> E[Outlook<br/>sideload or admin deploy]
+    D & E --> F[(SharePoint library<br/>via Microsoft Graph)]
 ```
 
 ## Before you start
 
 You need:
 
-- **Node.js 20 or newer.** Check with `node --version`.
+- **Node.js 20.12 or newer.** Check with `node --version`.
 - **npm access to a package registry.** On a corporate PC, npm must trust the company's TLS certificates. If `npm view react version` hangs or shows `SELF_SIGNED_CERT_IN_CHAIN`, fix that first.
-- **Windows PowerShell 5.1 or PowerShell 7**, for the template script.
+- **The SharePoint library and app registration** from [deployment.md](deployment.md) steps 2-3, including the **development** redirect URIs `brk-multihub://localhost:3000` and `https://localhost:3000/auth.html` ([app-registration.md](app-registration.md#2-add-the-redirect-uris)). A free Microsoft 365 developer or test tenant is fine.
+- **PowerShell 7 with Pester 5+** only if you want to run the script tests.
 - **Two terminals**: the dev server keeps one busy for as long as it runs.
 
-Commands marked *(repository root)* run in `C:\...\Add-in`. Commands marked *(addin)* run in `C:\...\Add-in\addin`.
+Commands marked *(repository root)* run in the repository folder. Commands marked *(addin)* run in its `addin` subfolder.
 
 ## Step 1: Install the dependencies
 
@@ -40,7 +42,7 @@ Commands marked *(repository root)* run in `C:\...\Add-in`. Commands marked *(ad
 npm install
 ```
 
-**What it does:** reads `addin/package.json` and downloads everything the add-in needs to build and run (webpack, React, Fluent UI, TypeScript, Jest, the Office add-in tools) into `addin/node_modules`. It also creates the small launcher programs in `node_modules/.bin`, such as `webpack`, that the `npm run ...` scripts call.
+**What it does:** reads `addin/package.json` and downloads everything the add-in needs to build and run (webpack, React, Fluent UI, MSAL, TypeScript, Jest, the Office add-in tools) into `addin/node_modules`. It also creates the small launcher programs in `node_modules/.bin`, such as `webpack`, that the `npm run ...` scripts call.
 
 **When to run it:** the first time, and again whenever `package.json` changes. You don't need it before every test session.
 
@@ -50,27 +52,32 @@ npm install
 
 > **Common error:** `'webpack' is not recognized as an internal or external command` means this step didn't finish. Run `npm install` again.
 
-## Step 2: Build the local template list
+> **Native build errors (`gyp ERR!`, `keytar`):** an optional native dependency of the Office debugging tools couldn't compile, typically on a locked-down PC or a very new Node.js version. Lint, tests and builds don't need it: run `npm install --ignore-scripts`. Use Node.js 22 LTS if you need `npm start` sideloading.
 
-*(repository root)*
+## Step 2: Configure the local settings
 
-```powershell
-./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -OutputPath templates/index.json -BaseUrl https://localhost:3000/templates/
-```
-
-**What it does:** checks every `templates/*.html` file (required `<meta>` tags, images that exist, and so on) and writes `templates/index.json`, the list of templates the task pane downloads. Each entry's URL starts with the `-BaseUrl` you pass.
-
-**Why the base URL matters:** for safety, the add-in ignores any template whose URL is outside its own templates folder. In development, that folder is `https://localhost:3000/templates/`. If `index.json` still contains the production URLs, the task pane shows an empty list.
-
-**When to run it:** before your first test, and again every time you add, rename or edit a template's `<meta>` tags. Editing only a template's body text doesn't require a new index, because the HTML file is read fresh each time.
-
-**How to tell it worked:** the script reports no problems and `templates/index.json` exists. The file is in `.gitignore`, so it won't be committed by accident.
-
-To only check the templates without writing anything:
+*(addin)*
 
 ```powershell
-./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -CheckOnly
+Copy-Item .env.example .env
+notepad .env
 ```
+
+**What it does:** `addin/.env` tells the build which tenant, app registration and SharePoint library to use:
+
+| Setting | Where to find it |
+| --- | --- |
+| `AUTH_CLIENT_ID` | Entra ID > App registrations > your app > **Application (client) ID** |
+| `AUTH_TENANT_ID` | Same page, **Directory (tenant) ID** |
+| `SHAREPOINT_SITE_URL` | The site's address, e.g. `https://contoso.sharepoint.com/sites/EmailTemplates` |
+| `SHAREPOINT_LIBRARY` | The library's display name (default `Email Templates`; a site's default library is `Documents`) |
+| `SHAREPOINT_FOLDER` | Optional folder inside the library, e.g. `Email` (subfolders are included) |
+
+`addin/.env` is in `.gitignore`. Real environment variables win over the file, so you can also set them in the terminal instead (`$env:AUTH_CLIENT_ID = '...'`).
+
+**When to run it:** once. Restart the dev server after changing `.env`.
+
+**How to tell it worked:** the dev server in Step 3 doesn't print *"Add-in settings are incomplete"*. With missing settings the development build still starts, but the task pane only shows which settings are missing.
 
 ## Step 3: Start the dev server
 
@@ -89,9 +96,11 @@ npm run dev-server
    | URL | Content |
    | --- | --- |
    | `/taskpane.html` | The task pane page Outlook loads |
+   | `/auth.html` | Sign-in redirect page for the popup fallback |
    | `/manifest.json`, `/manifest.xml` | The add-in manifests |
    | `/assets/*.png` | Ribbon icons |
-   | `/templates/...` | Files from the repository's `templates` folder, including `index.json` |
+
+   Templates are not served locally: the task pane reads them from SharePoint, exactly like production.
 
 4. **Watches for changes.** When you save a file under `addin/src`, it rebuilds automatically. Reload the task pane to see the change.
 
@@ -104,25 +113,30 @@ npm run dev-server
 Open these in Edge:
 
 - <https://localhost:3000/taskpane.html>: should load without a certificate warning.
-- <https://localhost:3000/templates/index.json>: should show the template list, with URLs starting `https://localhost:3000/templates/`.
+- <https://localhost:3000/auth.html>: should show "Signing in..." (followed by an error, because it wasn't opened by a sign-in; that's fine).
 
-**Why:** this proves that HTTPS, the certificate and the template files all work before Outlook is involved. If the browser shows a certificate warning, Outlook will refuse to load the add-in too.
+**Why:** this proves that HTTPS and the certificate work before Outlook is involved. If the browser shows a certificate warning, Outlook will refuse to load the add-in too.
 
 ## Step 5: Test the task pane in the browser
 
-With <https://localhost:3000/taskpane.html> open, you can test most of the add-in **without Outlook and without sideloading**. Office.js also starts outside Office, so the app loads normally.
+With <https://localhost:3000/taskpane.html> open, you can test most of the add-in **without Outlook and without sideloading**. Office.js also starts outside Office, so the app loads normally. A normal browser has no NAA, so this also tests the **popup fallback**:
+
+1. The task pane shows **Sign in to see the templates**. Click **Sign in**.
+2. A popup asks you to sign in with an account from your tenant. It closes by itself.
+3. The template list loads from SharePoint.
 
 What you can test here:
 
-- The template list loads from `index.json`.
+- Sign-in, and the error when you close the popup (*"Sign-in was cancelled."*).
+- The template list loads from the SharePoint library.
 - Search and the category filter.
 - The preview of a selected template.
 - The empty state (search for something that doesn't exist).
-- The error state: rename `templates/index.json` temporarily and reload.
+- Error states: for example a wrong `SHAREPOINT_LIBRARY` in `.env` (restart the dev server), or an account that can't read the site.
 
 What doesn't work here: **Insert**. It needs a message being written in Outlook, so you'll see *"Open a message you are writing, then try again."* That's expected, and it confirms the error message works.
 
-**Tip:** press `F12` to open developer tools. The **Console** tab shows errors, and **Network** shows each request for `index.json` and the templates.
+**Tip:** press `F12` to open developer tools. The **Console** tab shows errors, and **Network** shows each request to `graph.microsoft.com` and its status code.
 
 ## Step 6: Run the automated checks
 
@@ -132,7 +146,7 @@ What doesn't work here: **Insert**. It needs a message being written in Outlook,
 npm test
 ```
 
-**What it does:** runs Jest on the unit tests in `addin/tests`, covering filtering, `index.json` parsing and HTML clean-up. No server or Outlook is needed.
+**What it does:** runs Jest on the unit tests in `addin/tests`, covering filtering, reading the SharePoint list items, the Graph requests (with a fake `fetch`) and HTML clean-up. No server, tenant or Outlook is needed.
 
 ```powershell
 npm run lint
@@ -146,7 +160,7 @@ npm run validate
 
 **What it does:** checks `manifest.json` and `manifest.xml` against Microsoft's manifest rules, so problems show up before an admin tries to upload them.
 
-*(repository root)*, PowerShell tests for the template script (needs Pester 5+):
+*(repository root)*, PowerShell tests for the SharePoint setup scripts (needs Pester 5+; Graph calls are mocked, so no tenant is needed):
 
 ```powershell
 Invoke-Pester tests -Output Detailed
@@ -219,7 +233,10 @@ npx office-addin-dev-certs uninstall
 | `Could not read package.json` | You're in the wrong folder. npm commands run in `addin`. |
 | `EADDRINUSE ... 3000` | A dev server is already running. Stop it with `Ctrl+C`, or close the old terminal. |
 | Certificate warning at `https://localhost:3000` | Run `npx office-addin-dev-certs install`, then restart the dev server and the browser. |
-| Task pane shows an empty list | `index.json` has production URLs or is missing. Repeat Step 2 with the `localhost` base URL. |
-| *"Could not load the template list"* | The dev server isn't running, or `templates/index.json` doesn't exist. |
+| Task pane shows "built without these settings" | `addin/.env` is missing or incomplete. Repeat Step 2 and restart the dev server. |
+| Sign-in error `AADSTS50011` (redirect URI) | Add `https://localhost:3000/auth.html` and `brk-multihub://localhost:3000` as **SPA** redirect URIs. See [app-registration.md](app-registration.md#7-troubleshooting-sign-in) for other `AADSTS` codes. |
+| *"You don't have access to the templates site"* | The app has no `Sites.Selected` grant on the site, or your account can't read it. See [app-registration.md](app-registration.md#4-grant-the-app-access-to-the-templates-site-sitesselected). |
+| Task pane shows an empty list | The library has no `.html` files, or you can't see them (content approval: drafts are only visible to authors and approvers). |
+| A template's image is missing | Images must be absolute `https://` URLs; relative paths are removed because recipients couldn't load them. |
 | Code change doesn't appear | Wait for `compiled successfully` in terminal 1, then reload the task pane. |
 | Add-in button missing in Outlook | Custom add-ins may be blocked. Use Step 5 for the UI, and Option C for Outlook. |

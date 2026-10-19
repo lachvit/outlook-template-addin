@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   powershell:
-    name: Templates and PowerShell
+    name: PowerShell
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,17 +19,12 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Install Pester and PSScriptAnalyzer
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
           Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
-
-      - name: Validate templates
-        run: ./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -CheckOnly
 
       - name: Run Pester tests
         run: |
@@ -76,5 +71,8 @@ jobs:
       - name: Test production build
         env:
           ADDIN_BASE_URL: https://example.github.io/ci-check/
-          BUILD_ID: ci
+          # Placeholder values: CI only checks that a production build succeeds.
+          AUTH_CLIENT_ID: 00000000-0000-0000-0000-000000000001
+          AUTH_TENANT_ID: 00000000-0000-0000-0000-000000000002
+          SHAREPOINT_SITE_URL: https://contoso.sharepoint.com/sites/EmailTemplates
         run: npm run build

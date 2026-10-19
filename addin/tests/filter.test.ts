@@ -1,8 +1,8 @@
 import { filterTemplates, getCategories } from "../src/taskpane/lib/filter";
-import { TemplateInfo } from "../src/taskpane/lib/templateIndex";
+import { TemplateInfo } from "../src/taskpane/lib/templateItems";
 
 function template(id: string, category: string, name: string, description = "", keywords: string[] = []): TemplateInfo {
-  return { id, name, category, description, keywords, url: `https://x.test/templates/${id}.html`, lastModified: "" };
+  return { id, name, category, description, keywords, fileName: `${id}.html`, lastModified: "" };
 }
 
 const templates = [

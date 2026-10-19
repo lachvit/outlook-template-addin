@@ -1,4 +1,4 @@
-# Publishes the add-in and templates to GitHub Pages after every change to main.
+# Publishes the add-in to GitHub Pages after every change to main. Templates live in SharePoint, not here.
 name: Deploy
 
 on:
@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # full history so index.json gets each template's real last-commit date
 
       - name: Read GitHub Pages settings
         id: pages
@@ -43,8 +41,6 @@ jobs:
           base="${CUSTOM_BASE_URL:-$PAGES_BASE_URL}"
           base="${base%/}/"
           echo "ADDIN_BASE_URL=${base}" >> "$GITHUB_ENV"
-          echo "TEMPLATES_BASE_URL=${base}templates/" >> "$GITHUB_ENV"
-          echo "BUILD_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "Add-in will be published at ${base}"
 
       - name: Set up Node.js
@@ -57,15 +53,17 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
 
+      # Settings come from repository variables (Settings > Secrets and variables > Actions > Variables).
+      # They are not secrets: the client ID and tenant ID are visible in any single-page app.
       - name: Build the add-in
         working-directory: addin
+        env:
+          AUTH_CLIENT_ID: ${{ vars.AUTH_CLIENT_ID }}
+          AUTH_TENANT_ID: ${{ vars.AUTH_TENANT_ID }}
+          SHAREPOINT_SITE_URL: ${{ vars.SHAREPOINT_SITE_URL }}
+          SHAREPOINT_LIBRARY: ${{ vars.SHAREPOINT_LIBRARY }}
+          SHAREPOINT_FOLDER: ${{ vars.SHAREPOINT_FOLDER }}
         run: npm run build
-
-      - name: Add templates and generate index.json
-        shell: pwsh
-        run: |
-          Copy-Item -Path templates -Destination addin/dist/templates -Recurse
-          ./scripts/Publish-TemplateIndex.ps1 -TemplateRoot templates -OutputPath addin/dist/templates/index.json -BaseUrl $env:TEMPLATES_BASE_URL
 
       - name: Package the manifests for Microsoft 365 admin center
         working-directory: addin

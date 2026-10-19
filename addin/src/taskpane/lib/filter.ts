@@ -1,4 +1,4 @@
-import { TemplateInfo } from "./templateIndex";
+import { TemplateInfo } from "./templateItems";
 
 export function getCategories(templates: TemplateInfo[]): string[] {
   return Array.from(new Set(templates.map((t) => t.category))).sort((a, b) => a.localeCompare(b));

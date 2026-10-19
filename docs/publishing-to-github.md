@@ -27,7 +27,7 @@ Throughout, `<username>` is your GitHub user name (or organization name) and `<r
 Check these first:
 
 - **Company policy.** If this is work you did for your employer, confirm that you are allowed to publish it. This is usually a quick question to your manager, security or compliance team. Also check which account to use: a company-managed GitHub organization is often required for work code, and a personal account may be forbidden.
-- **No confidential content.** Templates, images, names, e-mail addresses and links in the project must all be safe for the public to see. The published templates are readable by anyone with the URL anyway.
+- **No confidential content.** Sample templates, names, e-mail addresses and links in the project must all be safe for the public to see. Your real templates live in SharePoint and never go to GitHub. The app registration's client ID and tenant ID are stored as repository variables, not in code; they aren't secrets, but they also aren't committed.
 - **Why public?** On the free GitHub plan, GitHub Pages only works for public repositories. The add-in needs Pages (it is the web hosting), so public is the simple route. Paid plans (Team, Enterprise) can keep the source private and still publish a public Pages site. See [Part 6 of the README](../README.md#part-6-first-time-setup-checklist).
 - **Network access.** Your PC must be able to reach `github.com`. Locked-down corporate PCs sometimes block it or require a proxy. If `git push` later fails to connect, ask IT, or do the upload from an unrestricted computer.
 
@@ -158,10 +158,10 @@ If you will push from a different PC, copy the project there after sections 2.1 
 | Copy | Notes |
 |---|---|
 | `.github/` | **Essential.** Holds the CI and Deploy workflows. It starts with a dot, so some tools skip it. Without it nothing gets built or published. |
-| `addin/` | The add-in source, **without** `addin/node_modules/` and `addin/dist/`. Includes `src/`, `tests/`, `assets/`, `manifest.json`, `manifest.xml`, `package.json`, `webpack.config.js`, `tsconfig*.json`, `jest.config.js`, `eslint.config.mjs`. Include `package-lock.json` only if you regenerated it in section 2.1. |
-| `templates/` | The email templates and `images/`. `templates/index.json` is generated, so it is optional. |
-| `scripts/` | `Publish-TemplateIndex.ps1`. |
-| `tests/` | `Publish-TemplateIndex.Tests.ps1`. |
+| `addin/` | The add-in source, **without** `addin/node_modules/`, `addin/dist/` and `addin/.env`. Includes `src/`, `tests/`, `assets/`, `manifest.json`, `manifest.xml`, `package.json`, `.env.example`, `webpack.config.js`, `tsconfig*.json`, `jest.config.js`, `eslint.config.mjs`. Include `package-lock.json` only if you regenerated it in section 2.1. |
+| `samples/` | Sample templates you can upload to SharePoint. |
+| `scripts/` | SharePoint setup scripts (`Initialize-TemplateLibrary.ps1`, `Grant-TemplateSiteAccess.ps1`, `TemplateLibrary.Common.ps1`). |
+| `tests/` | Pester tests for the scripts. |
 | `docs/` | Documentation, including this guide. |
 | `README.md` | |
 | `.gitignore`, `.gitattributes` | Dot files, easy to miss. `.gitignore` keeps generated files out of the repository. |
@@ -236,7 +236,7 @@ If you do this, use the organization name wherever this guide says `<username>`.
 1. Sign in and click the **+** at the top right, then **New repository**.
 2. Fill in the form:
    - **Owner:** your account or organization.
-   - **Repository name:** for example `outlook-template-addin`. Use lowercase letters, digits and hyphens. **Do not rename it later**: the add-in URL contains it, and emails already sent contain image links with it.
+   - **Repository name:** for example `outlook-template-addin`. Use lowercase letters, digits and hyphens. **Avoid renaming it later**: the add-in URL contains it, so a rename means new manifests and new redirect URIs in the app registration.
    - **Description:** one sentence, optional.
    - **Public** (selected).
    - **Do not** tick **Add a README file**, **Add .gitignore** or **Choose a license**. The project already has these, and extra files would make your first push conflict.
@@ -279,7 +279,7 @@ If you see `error: remote origin already exists`, run `git remote set-url origin
 
 ## 6. Turn on GitHub Pages
 
-Pages is GitHub's free web hosting for static files. The Deploy workflow publishes the add-in and templates there.
+Pages is GitHub's free web hosting for static files. The Deploy workflow publishes the add-in there (the templates stay in SharePoint).
 
 1. In your repository, click **Settings** (top tab; you need admin rights on the repo, which you have if you created it).
 2. In the left menu, click **Pages**.
@@ -291,17 +291,18 @@ Pages is GitHub's free web hosting for static files. The Deploy workflow publish
 **Actions** are GitHub's automatic jobs. This project has two workflows in [.github/workflows/](../.github/workflows/): **CI** (checks every change) and **Deploy** (publishes after changes reach `main`).
 
 1. **Settings > Actions > General**. Under **Actions permissions**, make sure **Allow all actions and reusable workflows** is selected, or that the GitHub-made actions listed in [README Part 6](../README.md#part-6-first-time-setup-checklist) are allowed. Under **Workflow permissions**, the default **Read repository contents** is enough.
-2. Open the **Actions** tab. Because you pushed to `main`, a **Deploy** run may already be running or finished. If you see a message asking you to enable workflows, click the green button to enable them.
-3. If nothing ran, click **Deploy** in the left list, then **Run workflow > Run workflow**.
-4. Click the running entry to watch it. It goes through **Checks**, **Build site** and **Deploy**. It takes a few minutes. All green ticks means success.
-5. The first time, GitHub may ask for approval of the `github-pages` environment, or may report that Pages is not enabled. If so, finish section 6 and click **Re-run all jobs**.
+2. **Settings > Secrets and variables > Actions > Variables tab**: add `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` and `SHAREPOINT_SITE_URL` (plus `SHAREPOINT_LIBRARY` if your library isn't called *Email Templates*, and `SHAREPOINT_FOLDER` if the templates are in a folder of it). The values come from the app registration and SharePoint setup in [app-registration.md](app-registration.md) and [deployment.md](deployment.md). Without them the **Build site** step fails with a message naming the missing variable.
+3. Open the **Actions** tab. Because you pushed to `main`, a **Deploy** run may already be running or finished (and failed, if the variables weren't there yet). If you see a message asking you to enable workflows, click the green button to enable them.
+4. If nothing ran, or it failed for missing variables, click **Deploy** in the left list, then **Run workflow > Run workflow**.
+5. Click the running entry to watch it. It goes through **Checks**, **Build site** and **Deploy**. It takes a few minutes. All green ticks means success.
+6. The first time, GitHub may ask for approval of the `github-pages` environment, or may report that Pages is not enabled. If so, finish section 6 and click **Re-run all jobs**.
 
 ## 8. Verify the published site
 
 Open each of these in a browser (replace the placeholders):
 
-- `https://<username>.github.io/<repo>/templates/index.json`: should show a list of templates as JSON text.
-- `https://<username>.github.io/<repo>/taskpane.html`: should show the add-in task pane (it may look empty or show a message outside Outlook, but it must not be a "404" page).
+- `https://<username>.github.io/<repo>/taskpane.html`: should show the add-in task pane with a **Sign in** button (outside Outlook there is no single sign-on). It must not be a "404" page.
+- `https://<username>.github.io/<repo>/auth.html`: should show "Signing in...". This is the redirect page registered in the app registration.
 
 The first publish can take a minute or two before the site responds.
 
@@ -315,14 +316,14 @@ This stops accidental or unreviewed changes from being published, because every 
 2. **Settings > Branches > Add branch protection rule** (or **Settings > Rules > Rulesets > New branch ruleset**).
 3. Branch name pattern: `main`.
 4. Tick **Require a pull request before merging** and require at least **1 approval**. If you are the only maintainer, you can leave approvals at 0, but keep the pull request requirement so CI runs first.
-5. Tick **Require status checks to pass before merging** and add **Templates and PowerShell** and **Add-in**.
+5. Tick **Require status checks to pass before merging** and add **PowerShell** and **Add-in**.
 6. Save.
 
 Also useful under **Settings > Code security** for a public repository: turn on **Dependabot alerts** and **Secret scanning** (and **Push protection**, which blocks accidental commits of passwords and tokens).
 
 ## 10. Next steps
 
-- Add or edit templates by following [README Part 5](../README.md#part-5-adding-or-editing-a-template). The usual flow is: create a branch, edit, open a pull request, wait for green checks, merge. The site updates itself.
+- Add or edit templates in the SharePoint library by following [README Part 5](../README.md#part-5-adding-or-editing-a-template). No pull request or deployment is needed for templates.
 - Finish the Microsoft 365 steps (uploading the manifest and assigning users) from [README Part 6](../README.md#part-6-first-time-setup-checklist).
 - If you later want your own web address instead of `github.io`, see [deployment.md](./deployment.md). Don't rename the repository or the account afterwards.
 

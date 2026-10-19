@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 
 export interface PreparedTemplate {
-  /** Sanitized body HTML with absolute image and link URLs, ready to insert. */
+  /** Sanitized body HTML with only absolute image and link URLs, ready to insert. */
   html: string;
   /** Text-only version for plain-text messages. */
   text: string;
@@ -31,22 +31,26 @@ export function sanitizeHtml(html: string): string {
   );
 }
 
-/** Turns relative img src and link href values into absolute URLs based on the template's own URL. */
-export function absolutizeUrls(html: string, baseUrl: string): string {
+const IMAGE_SOURCE = /^(https|data|cid):/i;
+const LINK_TARGET = /^(https?|mailto|tel):|^#/i;
+
+/**
+ * Templates live in SharePoint, which recipients can't reach, so images must use absolute https:// URLs
+ * (for example on the company website). Images with any other source would arrive broken and are removed;
+ * links that aren't absolute keep their text but lose the link.
+ */
+export function removeRelativeUrls(html: string): string {
   const doc = parse(html);
-  const rewrite = (element: Element, attribute: string): void => {
-    const value = element.getAttribute(attribute);
-    if (!value || value.startsWith("#")) {
-      return;
+  doc.body.querySelectorAll("img").forEach((img) => {
+    if (!IMAGE_SOURCE.test((img.getAttribute("src") ?? "").trim())) {
+      img.remove();
     }
-    try {
-      element.setAttribute(attribute, new URL(value, baseUrl).href);
-    } catch {
-      // Leave values that are not valid URLs unchanged.
+  });
+  doc.body.querySelectorAll("a[href]").forEach((a) => {
+    if (!LINK_TARGET.test((a.getAttribute("href") ?? "").trim())) {
+      a.removeAttribute("href");
     }
-  };
-  doc.body.querySelectorAll("img[src]").forEach((el) => rewrite(el, "src"));
-  doc.body.querySelectorAll("a[href]").forEach((el) => rewrite(el, "href"));
+  });
   return doc.body.innerHTML;
 }
 
@@ -92,8 +96,8 @@ export function htmlToPlainText(html: string): string {
     .trim();
 }
 
-/** Full pipeline: body only, sanitized, URLs made absolute, plus a text version. */
-export function prepareTemplate(rawHtml: string, templateUrl: string): PreparedTemplate {
-  const html = absolutizeUrls(sanitizeHtml(extractBody(rawHtml)), templateUrl);
+/** Full pipeline: body only, sanitized, relative URLs removed, plus a text version. */
+export function prepareTemplate(rawHtml: string): PreparedTemplate {
+  const html = removeRelativeUrls(sanitizeHtml(extractBody(rawHtml)));
   return { html, text: htmlToPlainText(html) };
 }
