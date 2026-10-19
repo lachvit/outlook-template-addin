@@ -206,11 +206,13 @@ export function App() {
     }
     setInserting(true);
     try {
-      const format = await insertIntoMessage(preview.template.html, preview.template.text);
+      const { format, position } = await insertIntoMessage(preview.template.html, preview.template.text);
+      const where = position === "top" ? "It was added at the top of the message, because the cursor wasn't in the message body." : undefined;
       if (format === "html") {
         dispatchToast(
           <Toast>
             <ToastTitle>Template inserted</ToastTitle>
+            {where && <ToastBody>{where}</ToastBody>}
           </Toast>,
           { intent: "success" },
         );
@@ -218,7 +220,9 @@ export function App() {
         dispatchToast(
           <Toast>
             <ToastTitle>Inserted as plain text</ToastTitle>
-            <ToastBody>This message is in plain-text format, so formatting and images were left out.</ToastBody>
+            <ToastBody>
+              This message is in plain-text format, so formatting and images were left out.{where ? ` ${where}` : ""}
+            </ToastBody>
           </Toast>,
           { intent: "warning" },
         );

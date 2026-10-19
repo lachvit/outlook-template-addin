@@ -28,7 +28,7 @@ An Outlook add-in that lets people insert approved, company-branded email templa
   - **search** by name, description or keyword;
   - **filter** by category;
   - **preview** a template;
-  - **insert** it where your cursor is. If you have selected text, the template replaces it.
+  - **insert** it into the message body: where your cursor is (if you have selected text, the template replaces it), or at the top of the body if the cursor is in To, Cc or Subject.
 - If the message is in plain-text format, a text-only version is inserted and you see a notice.
 
 ### What it does not do
@@ -406,10 +406,11 @@ Because authors edit templates directly in SharePoint, there is no pre-publish c
 
 ### Inserting: [outlook.ts](addin/src/taskpane/lib/outlook.ts)
 
-`insertIntoMessage` asks Outlook whether the message is HTML or plain text (`item.body.getTypeAsync`):
+`insertIntoMessage` always inserts into the message **body**, never into To, Cc or Subject:
 
-- **HTML:** `item.body.setSelectedDataAsync(html, { coercionType: Html })` inserts at the cursor.
-- **Plain text:** inserts the text version, and the task pane shows a notice.
+1. It asks Outlook whether the message is HTML or plain text (`item.body.getTypeAsync`). Plain-text messages get the text version, and the task pane shows a notice.
+2. It reads the body, calls `item.body.setSelectedDataAsync(...)` to insert at the cursor (or replace the selection), and reads the body again.
+3. If the body didn't change, the cursor was somewhere else (for example in the To field). It then adds the template at the top of the body with `item.body.prependAsync(...)`, above the signature and any quoted reply, and the toast says so.
 
 Success and failure are shown as a toast message at the bottom of the task pane.
 
@@ -544,6 +545,7 @@ Test in **classic Outlook**, **new Outlook** and **Outlook on the web**:
 - [ ] Search and category filter work; empty and error states show correctly.
 - [ ] A template edited in SharePoint shows the change after reopening the task pane.
 - [ ] Inserting into an HTML message, at the start, middle (cursor inside existing text) and end.
+- [ ] With the cursor in To, Cc or Subject, the template is added at the top of the body (above the signature).
 - [ ] Inserting into a plain-text message shows the notice and inserts readable text.
 - [ ] Images show in the sent email for the recipient.
 - [ ] Task pane stays pinned in classic Outlook when moving between drafts.
