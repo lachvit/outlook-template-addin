@@ -76,7 +76,7 @@ const standardRoutes: Route = (url) => {
   if (url.startsWith(`${GRAPH}/drives/${DRIVE_ID}/items/sub/children?`)) {
     return { body: { value: [file("f4", "welcome.htm", { Title: "Welcome", TemplateCategory: "HR" })] } };
   }
-  if (url === `${GRAPH}/drives/${DRIVE_ID}/items/f1?$select=id,@microsoft.graph.downloadUrl`) {
+  if (url === `${GRAPH}/drives/${DRIVE_ID}/items/f1`) {
     return { body: { id: "f1", "@microsoft.graph.downloadUrl": "https://contoso.sharepoint.com/download.aspx?tempauth=abc" } };
   }
   if (url === "https://contoso.sharepoint.com/download.aspx?tempauth=abc") {
@@ -191,12 +191,24 @@ describe("SharePointTemplateStore", () => {
     await expect(store.listTemplates()).resolves.toHaveLength(3);
   });
 
-  it("refuses download links that are not https", async () => {
-    mockFetch((url, init) =>
-      url.includes("/items/f1?") ? { body: { "@microsoft.graph.downloadUrl": "http://evil.test/x" } } : standardRoutes(url, init),
-    );
-    const store = new SharePointTemplateStore(location, async () => "t");
-    await expect(store.getTemplateHtml("f1")).rejects.toThrow(/download link/);
+  it("falls back to /content with the token when there is no usable download link", async () => {
+    for (const body of [{ id: "f1" }, { id: "f1", "@microsoft.graph.downloadUrl": "http://evil.test/x" }]) {
+      const calls = mockFetch((url, init) => {
+        if (url === `${GRAPH}/drives/${DRIVE_ID}/items/f1`) {
+          return { body };
+        }
+        if (url === `${GRAPH}/drives/${DRIVE_ID}/items/f1/content`) {
+          return { text: "<p>From content</p>" };
+        }
+        return standardRoutes(url, init);
+      });
+      const store = new SharePointTemplateStore(location, async () => "t");
+
+      await expect(store.getTemplateHtml("f1")).resolves.toBe("<p>From content</p>");
+      const content = calls.find((c) => c.url.endsWith("/items/f1/content"));
+      expect((content?.init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      expect(calls.some((c) => c.url.startsWith("http://evil.test"))).toBe(false);
+    }
   });
 
   it("does not follow nextLink URLs outside Microsoft Graph", async () => {

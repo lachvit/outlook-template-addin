@@ -131,17 +131,17 @@ export class SharePointTemplateStore {
 
   async getTemplateHtml(templateId: string): Promise<string> {
     const { driveId } = await this.resolveIds();
-    // The /content endpoint answers with a redirect that browsers can't follow with an Authorization
-    // header (CORS), so ask for the short-lived pre-authenticated download URL instead.
-    const item = await this.getJson<Record<string, unknown>>(
-      `${GRAPH}/drives/${driveId}/items/${encodeURIComponent(templateId)}?$select=id,@microsoft.graph.downloadUrl`,
-      "the template",
-    );
+    const itemUrl = `${GRAPH}/drives/${driveId}/items/${encodeURIComponent(templateId)}`;
+    // Prefer the short-lived pre-authenticated download URL (returned by default for files; a $select can
+    // drop it). It needs no Authorization header, so it avoids CORS problems with Graph's /content redirect.
+    const item = await this.getJson<Record<string, unknown>>(itemUrl, "the template");
     const downloadUrl = item["@microsoft.graph.downloadUrl"];
-    if (typeof downloadUrl !== "string" || !downloadUrl.startsWith("https://")) {
-      throw new Error("Could not load the template. SharePoint did not return a download link.");
+    if (typeof downloadUrl === "string" && downloadUrl.startsWith("https://")) {
+      const response = await this.send(downloadUrl, "the template", false);
+      return response.text();
     }
-    const response = await this.send(downloadUrl, "the template", false);
+    // Fallback: /content with the token. fetch follows the redirect to the file and drops the header.
+    const response = await this.send(`${itemUrl}/content`, "the template", true);
     return response.text();
   }
 

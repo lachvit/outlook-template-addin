@@ -380,7 +380,7 @@ The only scope requested is `https://graph.microsoft.com/Sites.Selected` (delega
 1. `GET /sites/{host}:/{site-path}` to find the site id (once per task pane session);
 2. `GET /sites/{site-id}/lists` to find the library by display or URL name, then its drive (`.../lists/{list-id}/drive`) and the folder (`/drives/{drive-id}/root:/{SHAREPOINT_FOLDER}`), once;
 3. `GET /drives/{drive-id}/items/{folder-id}/children?$expand=listItem($expand=fields(...))` for the files with their columns, following `@odata.nextLink` for large folders and walking into subfolders (up to 5 levels);
-4. on selection, `GET /drives/{drive-id}/items/{id}?$select=id,@microsoft.graph.downloadUrl`, then a plain download of the file from that short-lived, pre-authenticated URL. (Graph's `/content` endpoint answers with a redirect that browsers can't follow with an `Authorization` header.)
+4. on selection, `GET /drives/{drive-id}/items/{id}` and a plain download of the file from its short-lived, pre-authenticated `@microsoft.graph.downloadUrl` (no `Authorization` header needed). If the item comes back without that link, the add-in downloads `/drives/{drive-id}/items/{id}/content` with the token instead.
 
 Throttling (HTTP 429/503) is retried with `Retry-After`. Other HTTP errors become readable messages (e.g. 403 explains the `Sites.Selected` grant). `parseTemplateItems` keeps only `.html`/`.htm` files and sorts them by category and name.
 
