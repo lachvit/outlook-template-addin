@@ -40,7 +40,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^15.9.0",
     "html-webpack-plugin": "^5.6.0",
-    "jest": "^29.7.0",
+    "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
     "office-addin-debugging": ">=5.0.0",
     "office-addin-dev-certs": ">=1.13.0",
